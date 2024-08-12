@@ -9,7 +9,7 @@ To achieve this objective, it was further broken down into four technical sub-ob
 1. To perform in-depth exploratory data analysis of the dataset
 2. To develop new predictive features using this data
 3. To develop a logistic regression model that classifies each account into bot or human or gives the probability of being in either group
-4. To create an API endpoint for the trained model and deploy it
+4. To recommend a classification threshold that will have a higher accuracy than 0.5
 # Main Insights
 From the exploritory data analysis, we found that bot accounts are characterized by:
 1. The account not having geography enabled
