@@ -1,0 +1,744 @@
+---
+title: "Exploratory Data Analysis"
+author: "Michal"
+date: "2024-07-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyr)
+library(tidyverse)
+library(dplyr)
+```
+
+## Imports
+```{r}
+#knitr::purl("Data_Cleaning.Rmd", output = #"cleaning_function.R")
+```
+
+```{r}
+source("cleaning_function.R")
+```
+
+```{r}
+uncleaned_bots = read.csv("C:/Users/Owner/Desktop/Data Science Project/Twitter-Bot-Code/archive/twitter_human_bots_dataset.csv")
+```
+
+## Data
+
+```{r}
+bots_cleaned = cleaning_function(uncleaned_bots)
+head(bots_cleaned)
+```
+
+
+## Univariate Analysis
+
+This section looks through the available columns and plots to introduce the data.
+
+
+### Created At Date
+
+Year
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(year(created_at)))+
+  geom_histogram(stat= "count", fill="darkblue", color = "black")+
+  ggtitle("Year Created Distribution")+
+  xlab("Year Created")+
+  ylab("Count")+
+  theme_minimal()
+```
+
+
+Month
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(month(created_at, label=TRUE)))+
+  geom_histogram(stat= "count", fill="darkblue", color = "black")+
+  ggtitle("Month Created Distribution")+
+  xlab("Month Created")+
+  ylab("Count")+
+  theme_minimal()
+```
+
+
+Months in 2019
+```{r}
+ggplot(data = bots_cleaned%>%filter(year(created_at)== 2019), mapping = aes(month(created_at, label=TRUE)))+
+  geom_histogram(stat= "count", fill="darkblue", color = "black")+
+  ggtitle("Month in 2019 Created Distribution")+
+  xlab("Month Created")+
+  ylab("Count")+
+  theme_minimal()
+```
+
+
+Weekday
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(wday(created_at, label=TRUE)))+
+  geom_histogram(stat= "count", fill="darkblue", color = "black")+
+  ggtitle("Weekday Created Distribution")+
+  xlab("Weekday Created")+
+  ylab("Count")+
+  theme_minimal()
+```
+
+*Observations*
+
+* The year created distribution is skewed right, with a peak in 2009.
+* The monthly data is approximately uniform with slight spikes for March, April, and June, and a decrease towards the end of the year
+* There 2019 data is only complete through April.
+* There are slightly more accounts created on Wednesdays than the rest of the weekdays. The weekends have the least accounts created, but the difference is not large
+
+
+### Default Profile
+
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(default_profile))+
+  geom_histogram(stat= "count", fill="darkblue", color = "black")+
+  ggtitle("Default Profile Distribution")+
+  xlab("Has Default Profile")+
+  ylab("Count")+
+  theme_minimal()
+```
+*Observations*
+
+* Somewhat less than half of the accounts have default profiles
+
+
+### Default Profile Image
+
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(default_profile_image))+
+  geom_histogram(stat= "count", fill="darkblue", color = "black")+
+  ggtitle("Default Profile Image Distribution")+
+  xlab("Has Default Profile Image")+
+  ylab("Count")+
+  theme_minimal()
+```
+*Observations*
+
+* Very few accounts have the default profile image
+
+
+### Description
+
+Has Description
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(str_length(description)!=0))+
+  geom_histogram(stat="count",fill="darkblue", color = "black")+
+  ggtitle("Accounts with Description")+
+  xlab("Has a Description")+
+  ylab("Count")+
+  theme_minimal()
+```
+
+Description length
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(str_length(description)))+
+  geom_histogram(fill="darkblue", color = "black", binwidth = 1)+
+  ggtitle("Description Length Histogram")+
+  xlab("Description Length")+
+  ylab("Count")+
+  theme_minimal()
+```
+
+Description length excluding no description
+```{r}
+ggplot(data = bots_cleaned%>%filter(str_length(description)!=0), mapping = aes(str_length(description)))+
+  geom_histogram(fill="blue", color = "black", binwidth = 1)+
+  ggtitle("Description Length Excluding No Description")+
+  xlab("Description Length")+
+  ylab("Count")+
+  theme_minimal()
+
+ggplot(data = bots_cleaned%>%filter(str_length(description)!=0), mapping = aes(str_length(description)))+
+  geom_boxplot(fill="blue", color = "black")+
+  ggtitle("Description Length Box Plot")+
+  xlab("Description Length")+
+  theme(panel.background = element_rect(fill = "white"))+
+  theme_minimal()
+```
+
+Number of spaces in description among accounts with description
+```{r}
+ggplot(data = bots_cleaned%>%filter(description!=""), mapping = aes(str_count(description,"\\s")))+
+  geom_histogram(fill="blue", color = "black", binwidth = 1)+
+  ggtitle("Space Count Histogram")+
+  xlab("Space Count")+
+  ylab("Count")+
+  theme_minimal()
+```
+
+Periods in Description (accounts with description)
+```{r}
+ggplot(data = bots_cleaned%>%filter(description!=""), mapping = aes(str_count(description,"\\.")))+
+  geom_histogram(fill="blue", color = "black", binwidth = 1)+
+  ggtitle("Description Period Count")+
+  xlab("Number of Periods in Description")+
+  ylab("Count")+
+  theme_minimal()
+```
+
+Punctuation in Description (accounts with description)
+```{r}
+ggplot(data = bots_cleaned%>%filter(description!=""), mapping = aes(str_count(description,"[:punct:]")))+
+  geom_histogram(fill="blue", color = "black", binwidth = 1)+
+  ggtitle("Description Punctuation Count")+
+  xlab("Number of Punctuation in Description")+
+  ylab("Count")+
+  theme_minimal()
+```
+*Observations*
+
+* Most accounts have a description, but a significant minority do not
+* There is a somewhat bimodal distribution of description length, with peaks around 25 and 160 characters
+* Space count, Period count, and Punctuation count is skewed right with a peak at 0
+
+
+### Geography Enabled
+
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(geo_enabled))+
+  geom_histogram(stat= "count", fill="darkblue", color = "black")+
+  ggtitle("Geography Enabled Distribution")+
+  xlab("Has Geography Enabled")+
+  ylab("Count")+
+  theme_minimal()
+```
+*Observations*
+
+* A slight majority of accounts do not have geography enabled
+
+
+### id
+
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(id))+
+  geom_histogram(fill="blue", color = "black")+
+  ggtitle("User ID Distribution")+
+  xlab("User ID")+
+  ylab("Count")+
+  scale_x_log10()+
+  theme_minimal()
+```
+*Observations*
+
+* Id values are strongly skewed right
+
+
+### Language
+
+
+```{r}
+lang_count=bots_cleaned%>%
+  count(lang)%>%
+  slice_max(n,n=2)
+lang_count
+
+rest=bots_cleaned%>%
+  count(lang)%>%
+  anti_join(lang_count)%>%
+  summarise(sum(n))
+rest
+
+final=bind_rows(lang_count,rest)%>%
+  mutate(lang=if_else(lang=="", "None", lang))%>%
+  mutate(lang=if_else(is.na(lang), "Other", lang))%>%  
+  mutate(n=if_else(is.na(n), 0, n))%>%
+  mutate(`sum(n)`=if_else(is.na(`sum(n)`), 0, `sum(n)`))%>%
+  mutate(n=n+`sum(n)`)%>%
+  select(-`sum(n)`)
+final
+```
+
+```{r}
+ggplot(data = final, mapping = aes(x=lang,y=n))+
+  geom_bar(stat = "identity",fill="blue", color = "black")+
+  ggtitle("User ID Distribution")+
+  xlab("User ID")+
+  ylab("Count")
+```
+*Observations*
+
+* The majority of accounts are in English, of the rest, half have no language set and half use another language 
+
+
+
+### Location
+
+```{r}
+top_30 = bots_cleaned%>%
+  count(location)%>%
+  slice_max(n,n=31)
+top_30
+# 13040 unkown accounts
+sum(top_30$n)-13040
+
+top_100 = bots_cleaned%>%
+  count(location)%>%
+  slice_max(n,n=101)
+sum(top_100$n)-13040
+
+top_1000 = bots_cleaned%>%
+  count(location)%>%
+  slice_max(n,n=1001)
+sum(top_1000$n)-13040
+
+a = bots_cleaned%>%
+  count(location)
+nrow(a)
+```
+
+*Observations*
+
+* Around one third of the accounts have an unknown location (13040)
+* Top 30 locations (30/12030=0.2%) have 4003 accounts (4003/37438=10.7%)
+* Top 100 locations (100/12030=0.8%) have 6681 accounts (6681/37438=17.8%)
+* Top 1000 locations (1000/12030=8.3%) have 12698 accounts (12698/37438=33.9%)
+
+
+
+### Username
+Username length
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(str_length(screen_name)))+
+  geom_histogram(fill="darkblue", color = "black", binwidth = 1)+
+  ggtitle("Username Length Histogram")+
+  xlab("Username Length")+
+  ylab("Count")+
+  theme_minimal()
+
+ggplot(data = bots_cleaned, mapping = aes(str_length(screen_name)))+
+  geom_boxplot(fill="darkblue", color = "black")+
+  ggtitle("Username Length Box Plot")+
+  xlab("Username Length")+
+  theme(panel.background = element_rect(fill = "white"))+
+  theme_minimal()
+
+summary(str_length(bots_cleaned$screen_name))
+```
+
+Digits in Username
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(str_count(screen_name,"\\d")))+
+  geom_histogram(fill="darkblue", color = "black", binwidth = 1)+
+  ggtitle("Username Digit Count")+
+  xlab("Number of Digits in Username")+
+  ylab("Count")+
+  theme_minimal()
+```
+Digits in Username without zero
+```{r}
+ggplot(data = bots_cleaned%>%filter(str_count(screen_name,"\\d")!=0), mapping = aes(str_count(screen_name,"\\d")))+
+  geom_histogram(fill="darkblue", color = "black", binwidth = 1)+
+  ggtitle("Username Digit Count")+
+  xlab("Number of Digits in Username")+
+  ylab("Count")+
+  theme_minimal()
+```
+
+
+*Observations*
+
+* Username length is strongly skewed to the left, with a maximum at 15 characters
+* The majority of Usernames contain zero digits
+* Among usernames with digits, there is a right skew, with a peak at 2 digits
+
+
+
+### Verified
+
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(verified))+
+  geom_histogram(stat= "count", fill="darkblue", color = "black")+
+  ggtitle("Verified Distribution")+
+  xlab("Verified")+
+  ylab("Count")+
+  theme_minimal()
+```
+*Observations*
+
+* Under one quarter of the Twitter accounts are verified
+
+
+### Account Age
+
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(account_age_days))+
+  geom_histogram(fill="blue", color = "black", binwidth = 100)+
+  ggtitle("Account Age Distribution")+
+  xlab("Account Age")+
+  ylab("Count")+
+  theme_minimal()
+```
+*Observations*
+
+* Account age is skewed left with a peak around 4100 days
+
+
+### Bot Label
+
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(is_bot))+
+  geom_bar(fill="blue", color = "black")+
+  ggtitle("Bot Label Distribution")+
+  xlab("Is Bot?")+
+  ylab("Count")+
+  theme_minimal()
+```
+*Observations*
+
+* Around one third of the Twitter accounts in this data set are bots
+
+
+### Split
+
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(split))+
+  geom_bar(fill="darkblue", color = "black")+
+  ggtitle("Split Distribution")+
+  xlab("Split")+
+  ylab("Count")+
+  theme_minimal()
+```
+*Observations*
+
+* Almost all split values are 0, with the rest being equally distributed between 1 and 2
+
+
+### Favourites Count
+
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(log_favourites_count))+
+  geom_histogram(fill="darkblue", color = "black", binwidth = .1)+
+  ggtitle("Favourites Count Distribution")+
+  xlab("Favourites Count")+
+  ylab("Count")+
+  theme_minimal()
+```
+*Observations*
+
+* The transformed and winsorized favorites count is skewed left with a sharp peak around 3.2
+
+
+### Followers Count
+
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(log_followers_count))+
+  geom_histogram(fill="darkblue", color = "black", binwidth = .1)+
+  ggtitle("Followers Count Distribution")+
+  xlab("Followers Count")+
+  ylab("Count")+
+  theme_minimal()
+```
+*Observations*
+
+* The transformed and winsorized followers count is non-normal and skewed right
+
+
+### Friends Count
+
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(log_friends_count))+
+  geom_histogram(fill="darkblue", color = "black", binwidth = .1)+
+  ggtitle("Friends Count Distribution")+
+  xlab("Friends Count")+
+  ylab("Count")+
+  theme_minimal()
+```
+*Observations*
+
+* The transformed and winsorized friends count is non-normal and skewed left
+
+
+### Statuses Count
+
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(log_statuses_count))+
+  geom_histogram(fill="darkblue", color = "black", binwidth = .1)+
+  ggtitle("Statuses Count Distribution")+
+  xlab("Statuses Count")+
+  ylab("Count")+
+  theme_minimal()
+```
+*Observations*
+
+* The transformed and winsorized statuses count is non-normal and skewed left
+
+
+### Average Tweets Per Day
+
+```{r}
+ggplot(data = bots_cleaned, mapping = aes(log_avg_tweets_per_day))+
+  geom_histogram(fill="darkblue", color = "black", binwidth = .1)+
+  ggtitle("Average Tweets Per Day Distribution")+
+  xlab("Average Tweets Per Day")+
+  ylab("Count")+
+  theme_minimal()
+```
+*Observations*
+
+* The transformed and winsorized Average Tweets Per Day count is non-normal and skewed right
+
+
+
+## Features vs Target
+
+This section performs a bi-variate analysis of the distribution of Bot accounts. This can help in determining what data and feature selection to perform.
+
+
+
+
+### Geography Enabled
+```{r}
+ggplot(data = bots_cleaned%>%mutate(is_bot=as.logical(is_bot)), mapping = aes(x=geo_enabled, fill = is_bot))+
+  geom_bar()+
+  theme_minimal()
+```
+
+```{r}
+summary_table <- bots_cleaned %>%
+  group_by(geo_enabled, is_bot) %>%
+  summarize(count = n()) 
+
+summary_table
+
+test_result <- prop.test(
+  x = c(2716, 9709), 
+  n = c(2716+14361, 9709+10652)
+)
+test_result
+```
+
+
+*Observations*
+
+* There is a significantly higher proportion of bots among the accounts with geography disabled (p-value < 2.2e-16)
+
+*Impact*
+
+* geo_enabled is a strong predictor of whether the account is a bot
+
+
+
+
+### Verified
+```{r}
+ggplot(data = bots_cleaned%>%mutate(is_bot=as.logical(is_bot)), mapping = aes(x=verified, fill = is_bot))+
+  geom_bar()+
+  theme_minimal()
+```
+
+```{r}
+summary_table2 <- bots_cleaned %>%
+  group_by(verified, is_bot) %>%
+  summarize(count = n()) 
+
+summary_table2
+
+test_result2 <- prop.test(
+  x = c(12109, 316), 
+  n = c(17778+12109, 7235+316)
+)
+test_result2
+```
+*Observations*
+
+* There is a significantly higher proportion of bots among the accounts that are not verified (p-value < 2.2e-16)
+
+*Impact*
+
+* verified is a significant predictor of whether the account is a bot
+
+
+### Default Profile
+```{r}
+ggplot(data = bots_cleaned%>%mutate(is_bot=as.logical(is_bot)), mapping = aes(x=default_profile, fill = is_bot))+
+  geom_bar()+
+  theme_minimal()
+```
+
+```{r}
+summary_table3 <- bots_cleaned %>%
+  group_by(default_profile, is_bot) %>%
+  summarize(count = n()) 
+
+summary_table3
+
+test_result3 <- prop.test(
+  x = c(7741, 4684), 
+  n = c(7979+7741, 17034+4684)
+)
+test_result3
+```
+*Observations*
+
+* There is a significantly higher proportion of bots among the accounts that use the default profile (p-value < 2.2e-16)
+
+*Impact*
+
+* Default profile is a significant predictor of whether the account is a bot
+
+### Default Profile Image
+```{r}
+ggplot(data = bots_cleaned%>%mutate(is_bot=as.logical(is_bot)), mapping = aes(x=default_profile_image, fill = is_bot))+
+  geom_bar()+
+  theme_minimal()
+```
+
+```{r}
+summary_table4 <- bots_cleaned %>%
+  group_by(default_profile_image, is_bot) %>%
+  summarize(count = n()) 
+
+summary_table4
+
+test_result4 <- prop.test(
+  x = c(383, 12042), 
+  n = c(383+175, 12042+24838)
+)
+test_result4
+```
+*Observations*
+
+* There is a significantly higher proportion of bots among the accounts that are use the default profile image (p-value < 2.2e-16)
+
+*Impact*
+
+* Default profile image is a significant predictor of whether the account is a bot
+
+
+### Split
+```{r}
+ggplot(data = bots_cleaned%>%mutate(is_bot=as.logical(is_bot)), mapping = aes(x=split, fill = is_bot))+
+  geom_bar()+
+  theme_minimal()
+```
+
+```{r}
+summary_table5 <- bots_cleaned %>%
+  group_by(split, is_bot) %>%
+  summarize(count = n()) 
+
+summary_table5
+
+# split 0 vs split 1
+test_result5a <- prop.test(
+  x = c(9932, 1267), 
+  n = c(9932+20018, 1267+2476)
+)
+test_result5a
+
+# split 1 vs split 2
+test_result5b <- prop.test(
+  x = c(1226, 1267), 
+  n = c(1226+2519, 1267+2476)
+)
+test_result5b
+
+# split 0 vs split 2
+test_result5c <- prop.test(
+  x = c(1226, 9932), 
+  n = c(1226+2519, 9932+20018)
+)
+test_result5c
+
+
+```
+*Observations*
+
+* There is a no significant difference of proportion of bots among the accounts based on split value (p-value = 0.6153, 0.3187, and 0.41)
+
+*Impact*
+
+* Data set can be filtered out to exclude split because it is not a significant predictor of whether the account is a bot
+
+
+## Hypothesis
+
+### Are younger accounts with more tweets per day more likely to be bots?
+
+```{r}
+
+ggplot(data = bots_cleaned%>%mutate(is_bot=as.logical(is_bot)), mapping = aes(x=cut(account_age_days, breaks = seq(0, max(account_age_days), by = 500), include.lowest = TRUE), y=log_avg_tweets_per_day, fill = is_bot))+
+  geom_boxplot()+
+  theme_minimal() +
+  labs(x = "Account Age (500-day intervals)", y = "Log Avg Tweets per Day", fill = "Is Bot") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r}
+thing = bots_cleaned%>%
+  filter(account_age_days<=500)
+thing$is_bot
+```
+*Observations*
+
+* The very oldest accounts do post more per day than the more recent ones 
+* Overall, bot accounts appear to post less than real accounts
+* All (three) bots that are less than 500 days old are bots
+
+*Insights*
+
+* Filter data set to remove bots less than 500 days old
+* Younger bots with more tweets per day are not more likely to be bots
+
+
+### Are account activity data significant predictors of bots?
+```{r}
+activity_model = glm(is_bot ~ log_favourites_count+log_followers_count+log_friends_count+log_statuses_count+log_avg_tweets_per_day, data = bots_cleaned, family = binomial)
+
+summary(activity_model)
+```
+*Observations*
+
+* Each of the predictors has a significant P value
+* Favourites, Followers, and Friends are negativly correlated
+* Statuses and Daily Tweets are positively correlated
+
+*Insights*
+
+* Account activity data are significant predictors of bots
+
+
+## Summary
+
+### Main Insights/Observations
+
+* The year created distribution is skewed right, with a peak in 2009.
+* Somewhat less than half of the accounts have default profiles
+* Very few accounts have the default profile image
+* There is a somewhat bimodal distribution of description length, with peaks around 25 and 160 characters
+* A slight majority of accounts do not have geography enabled
+* Id values are strongly skewed right
+* The majority of accounts are in English, of the rest, half have no language set and half use another language
+* Top 100 locations (100/12030=0.8%) have 6681 accounts (6681/37438=17.8%)
+* Username length is strongly skewed to the left, with a maximum at 15 characters
+* Under one quarter of the Twitter accounts are verified
+* The transformed and winsorized favorites count is skewed left with a sharp peak around 3.2
+* The transformed and winsorized followers count is non-normal and skewed right
+* The transformed and winsorized friends count is non-normal and skewed left
+* The transformed and winsorized statuses count is non-normal and skewed left
+* The transformed and winsorized Average Tweets Per Day count is non-normal and skewed right
+* There is a significantly higher proportion of bots among the accounts with geography disabled (p-value < 2.2e-16)
+* There is a significantly higher proportion of bots among the accounts that are not verified (p-value < 2.2e-16)
+* There is a significantly higher proportion of bots among the accounts that use the default profile (p-value < 2.2e-16)
+* There is a significantly higher proportion of bots among the accounts that are use the default profile image (p-value < 2.2e-16)
+* There is a no significant difference of proportion of bots among the accounts based on split value (p-value = 0.6153, 0.3187, and 0.41)
+* Younger bots with more tweets per day are not more likely to be bots
+* Account activity data are significant predictors of bots
+
+
+### Implications for Modelling
+* geo_enabled is a strong predictor of whether the account is a bot
+* verified is a significant predictor of whether the account is a bot
+* Default profile is a significant predictor of whether the account is a bot
+* Default profile image is a significant predictor of whether the account is a bot
+* Data set can be filtered out to exclude split because it is not a significant predictor of whether the account is a bot
+* Filter data set to remove bots less than 500 days old
+
+
+
+

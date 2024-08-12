@@ -1,0 +1,400 @@
+---
+title: "Feature Engineering"
+author: "Michal"
+date: "2024-07-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(corrplot)
+```
+
+## Data
+
+```{r}
+source("cleaning_function.R")
+```
+
+```{r}
+uncleaned_bots = read.csv("C:/Users/Owner/Desktop/Data Science Project/Twitter-Bot-Code/archive/twitter_human_bots_dataset.csv")
+```
+
+```{r}
+bots_cleaned = cleaning_function(uncleaned_bots)
+# applying EDA recommendations
+bots_FE = bots_cleaned%>%
+  select(-split)%>%
+  filter(account_age_days>500)%>%
+  mutate(is_bot=as.logical(is_bot))
+```
+
+## Features
+
+
+### Description Features
+
+Has description - it seems likely that mass producers of bot accounts would not have time to write a description
+
+Description length - perhaps bots use a similar format of descriptions, which would mean that certain lengths have more bots
+
+Number of spaces in description - is it possible that bot account descriptions have a similar amount of words to each other, if they are created based on a template
+
+Periods in Description - the bot account description templates could have a constant number of periods (sentences)
+
+Punctuation in Description - the bot account description templates could have a constant number of punctuation
+
+Bot in Description - the account might admit to being a bot in the description
+```{r}
+with_features = bots_FE%>%
+  mutate(has_desc=str_length(description)!=0)%>%
+  mutate(desc_length=str_length(description))%>%
+  mutate(desc_space_count=str_count(description,"\\s"))%>%
+  mutate(desc_period_count=str_count(description,"\\."))%>%
+  mutate(desc_punct_count=str_count(description,"[:punct:]"))%>%
+  mutate(bot_in_desc=str_detect(`description`,"bot"))
+```
+### Name Features
+Four features seem reasonable from the Name category. Username length might be a predictor of is_bot, since bots may be named according to certain formats. Additionally, number of digits and punctuation may also predict if the account is a bot, for the same reason. Finally, a lot of bots may admit to being bots in their name, so a marker for the word "bot" should also be added.
+```{r}
+with_features = with_features%>%
+  mutate(username_length=str_length(screen_name))%>%
+  mutate(user_digit_count=str_count(screen_name,"\\d"))%>%
+  mutate(user_punct_count=str_count(description,"[:punct:]"))%>%
+  mutate(bot_in_name=str_detect(`screen_name`,"bot"))
+```
+### Friends to Followers Ratio
+Bots often exist to drive engagement with real accounts (by following them), but do not provide any value, and therefore have few if any followers.
+```{r}
+with_features = with_features%>%
+  mutate(friends_followers_ratio=log_friends_count/log_followers_count)
+```
+### Location Feature
+It makes sense that bots would have their location set to unknown.
+```{r}
+with_features = with_features%>%
+  mutate(unknown_loc=str_detect(location,"unknown"))
+```
+### Language Feature
+It would make sense that bots would not have a language set.
+```{r}
+with_features = with_features%>%
+  mutate(missing_lang = lang == "")
+head(with_features)
+```
+
+
+## Feature Selection 
+Feature selection is done in two steps:
+
+* Quality Checks - does the feature have a lot of missing values (>95%)
+* Correlation analysis - if features are highly correlated with one another (>95%), choose feature with greatest variance
+
+First, creating new data frame with just newly engineered features:
+```{r}
+only_new_features=with_features%>%
+  select(desc_length,desc_space_count,desc_period_count,desc_punct_count,bot_in_desc,username_length,user_digit_count,bot_in_name,friends_followers_ratio,unknown_loc,missing_lang,is_bot)
+
+colnames(only_new_features)
+```
+
+### Quality 
+```{r}
+missing_rows_df=only_new_features%>%
+  mutate(missing_rows = rowSums(is.na(.)) > 0)%>%
+  filter(missing_rows==TRUE)
+nrow(missing_rows_df)
+```
+No missing values: no need to remove features for quality issues
+
+### Correlation
+
+```{r}
+correlation = cor(only_new_features)
+corrplot(correlation, method = 'color', type = "lower")
+```
+Only several of the features are strongly correlated. Make a dataframe with only the correlated features.
+```{r}
+cor_feature = only_new_features%>%
+  select(-bot_in_desc,-username_length,-user_digit_count,-bot_in_name,-friends_followers_ratio)
+
+correlation2 = cor(cor_feature)
+corrplot(correlation2, method = 'number', type = "lower")
+```
+Description length and Description Space Count are most highly correlated (0.90). However, even this is below the 0.95 benchmark, so no features have to be removed.
+
+
+
+
+## EDA for Remaining Engineered Features
+Has Description
+```{r}
+ggplot(data = bots_FE, mapping = aes(x=str_length(description)!=0,fill=is_bot))+
+  geom_histogram(stat="count",color = "black")+
+  ggtitle("Accounts with Description")+
+  xlab("Has a Description")+
+  ylab("Count")+
+  theme_minimal()
+
+
+has_description_model = glm(is_bot~has_desc, data = with_features, family = binomial)
+
+summary(has_description_model)
+```
+
+Description length
+```{r}
+ggplot(data = bots_FE, mapping = aes(x=str_length(description),fill=is_bot))+
+  geom_histogram()+
+  ggtitle("Description Length Histogram")+
+  xlab("Description Length")+
+  ylab("Count")+
+  theme_minimal()
+
+model = glm(is_bot~str_length(description),data=bots_FE,family = binomial)
+summary(model)
+```
+
+Number of spaces in description
+```{r}
+ggplot(data = bots_FE%>%filter(description!=""), mapping = aes(str_count(description,"\\s"),fill=is_bot))+
+  geom_histogram()+
+  ggtitle("Space Count Histogram")+
+  xlab("Space Count")+
+  ylab("Count")+
+  theme_minimal()
+
+model = glm(is_bot~str_count(description,"\\s"),data=bots_FE,family = binomial)
+summary(model)
+```
+
+Periods in Description
+```{r}
+ggplot(data = bots_FE%>%filter(description!=""), mapping = aes(str_count(description,"\\."),fill=is_bot))+
+  geom_histogram()+
+  ggtitle("Description Period Count")+
+  xlab("Number of Periods in Description")+
+  ylab("Count")+
+  theme_minimal()
+
+model = glm(is_bot~str_count(description,"\\."),data=bots_FE,family = binomial)
+summary(model)
+```
+
+Punctuation in Description
+```{r}
+ggplot(data = bots_FE%>%filter(description!=""), mapping = aes(str_count(description,"[:punct:]"), fill=is_bot))+
+  geom_histogram()+
+  ggtitle("Description Punctuation Count")+
+  xlab("Number of Punctuation in Description")+
+  ylab("Count")+
+  theme_minimal()
+
+model = glm(is_bot~str_count(description,"[:punct:]"),data=bots_FE,family = binomial)
+summary(model)
+```
+
+Bot in Description
+```{r}
+ggplot(data = with_features, mapping = aes(bot_in_desc, fill=is_bot))+
+  geom_bar()+
+  ggtitle("Bot in description vs being bot")+
+  xlab("Word bot in Description")+
+  ylab("Count")+
+  scale_y_log10()+
+  theme_minimal()
+
+model = glm(is_bot~bot_in_desc,data=with_features,family = binomial)
+summary(model)
+```
+
+Username Length - not significant, to be removed
+```{r}
+ggplot(data = with_features, mapping = aes(username_length, fill=is_bot))+
+  geom_histogram()+
+  ggtitle("Username Length")+
+  xlab("Number of Characters in Username")+
+  ylab("Count")+
+  theme_minimal()
+
+model = glm(is_bot~username_length,data=with_features,family = binomial)
+summary(model)
+```
+
+Username Digit Count
+```{r}
+ggplot(data = with_features, mapping = aes(user_digit_count, fill=is_bot))+
+  geom_histogram()+
+  ggtitle("Username Digits")+
+  xlab("Number of Digits in Username")+
+  ylab("Count")+
+  theme_minimal()
+
+model = glm(is_bot~user_digit_count,data=with_features,family = binomial)
+summary(model)
+```
+
+Username Punctuation
+```{r}
+ggplot(data = with_features, mapping = aes(user_punct_count, fill=is_bot))+
+  geom_histogram()+
+  ggtitle("Username Punctuation")+
+  xlab("Number of Punctuation in Username")+
+  ylab("Count")+
+  theme_minimal()
+
+model = glm(is_bot~user_punct_count,data=with_features,family = binomial)
+summary(model)
+```
+
+Bot in Username
+```{r}
+ggplot(data = with_features, mapping = aes(bot_in_name, fill=is_bot))+
+  geom_bar()+
+  ggtitle("Bot in name vs being bot")+
+  xlab("Word bot in Username")+
+  ylab("Count")+
+  scale_y_log10()+
+  theme_minimal()
+
+model = glm(is_bot~bot_in_name,data=with_features,family = binomial)
+summary(model)
+```
+
+Friends to Followers Ratio
+```{r}
+ggplot(data = with_features, mapping = aes(friends_followers_ratio, fill=is_bot))+
+  geom_histogram()+
+  ggtitle("Friends to Followers Ratio")+
+  xlab("Ratio")+
+  ylab("Count")+
+  scale_y_log10()+
+  theme_minimal()
+
+model = glm(is_bot~friends_followers_ratio,data=with_features,family = binomial)
+summary(model)
+```
+
+Location Unknown
+```{r}
+ggplot(data = with_features, mapping = aes(unknown_loc, fill=is_bot))+
+  geom_bar()+
+  ggtitle("Unkown Location")+
+  xlab("Unkown Location")+
+  ylab("Count")
+  theme_minimal()
+
+model = glm(is_bot~unknown_loc,data=with_features,family = binomial)
+summary(model)
+```
+
+Missing Language
+```{r}
+ggplot(data = with_features, mapping = aes(missing_lang, fill=is_bot))+
+  geom_bar()+
+  ggtitle("Missing Language")+
+  xlab("Missing Language")+
+  ylab("Count")
+  theme_minimal()
+
+model = glm(is_bot~missing_lang,data=with_features,family = binomial)
+summary(model)
+```
+
+
+Observations
+* Most of the engineered features are significantly correlated to the probability of the account being a bot
+
+Impact
+* Username Length is not significant so it can be dropped
+
+```{r}
+final_df = with_features%>%
+  select(-username_length)
+colnames(final_df)
+```
+
+
+## Feature Engineering PipeLine
+```{r}
+feature_function = function(data){
+  # run data cleaning function
+  cleaned = data%>%
+   #  remove unnecessary columns
+    select(-X,-profile_image_path,-profile_background_image_path, -profile_background_image_url, -profile_image_url)%>%
+   
+     # standardize missing location  value
+    mutate(
+      location = if_else(str_trim(location) == "","unknown",location))%>%
+  
+    # type cast to correct class
+  mutate(
+    created_at = ymd_hms(created_at),
+    default_profile = as.logical(default_profile),
+    default_profile_image = as.logical(default_profile_image),
+    geo_enabled = as.logical(geo_enabled),
+    verified = as.logical(verified))%>%
+    
+     #cast and rename account_type
+  mutate(
+    account_type=if_else(account_type=="bot",1,0))%>%
+  rename(is_bot=account_type)%>%
+    
+    # transform and winsorize outliers
+    mutate(
+      # log(x+1) to avoid "-inf"
+      log_favourites_count = log10(favourites_count+1),
+      log_followers_count = log10(followers_count+1),
+      log_friends_count = log10(friends_count+1),
+      log_statuses_count = log10(statuses_count+1),
+      log_avg_tweets_per_day = log10(average_tweets_per_day+1)
+    )%>%
+    mutate(
+      log_favourites_count= Winsorize(log_favourites_count),
+      log_followers_count = Winsorize(log_followers_count),
+      log_friends_count = Winsorize(log_friends_count),
+      log_statuses_count = Winsorize(log_statuses_count),
+      log_avg_tweets_per_day = Winsorize(log_avg_tweets_per_day)
+    )%>%
+  
+  # remove old columns
+  select(-favourites_count,-followers_count,-friends_count, -statuses_count, -average_tweets_per_day)
+  
+  
+  
+  final = cleaned %>% 
+    # apply EDA recommendations
+    select(-split)%>%
+    filter(account_age_days>500)%>%
+    # add new features
+    mutate(is_bot=as.logical(is_bot))%>%
+    mutate(has_desc=str_length(description)!=0)%>%
+    mutate(desc_length=str_length(description))%>%
+    mutate(desc_space_count=str_count(description,"\\s"))%>%
+    mutate(desc_period_count=str_count(description,"\\."))%>%
+    mutate(desc_punct_count=str_count(description,"[:punct:]"))%>%
+    mutate(bot_in_desc=str_detect(`description`,"bot"))%>%
+    mutate(user_digit_count=str_count(screen_name,"\\d"))%>%
+    mutate(user_punct_count=str_count(description,"[:punct:]"))%>%
+    mutate(bot_in_name=str_detect(`screen_name`,"bot"))%>%
+    mutate(friends_followers_ratio=log_friends_count/log_followers_count)%>%
+    mutate(unknown_loc=str_detect(location,"unknown"))%>%
+    mutate(missing_lang = lang == "")
+  
+  return(final)
+}
+```
+
+## Summary
+
+#### Feature Engineering Summary
+
+* 14 new features were engineered, mostly relating to the string variables
+* one mathematical ratio (friends to followers) was added
+* one feature was dropped due to lack of significant correlation
+
+
+#### Implications of Modeling
+
+* Engineered and selected 13 features that should theoretically be useful in the prediction model
+* Feature engineering pipeline was designed, so new data can be easily transformed

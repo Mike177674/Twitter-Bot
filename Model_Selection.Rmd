@@ -1,0 +1,217 @@
+---
+title: "Model Selection"
+author: "Michal"
+date: "2024-07-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Imports
+```{r}
+#knitr::purl("Feature_Engineering.Rmd", output #"feature_function.R")
+```
+
+```{r}
+library(glmnet)
+library(tidyverse)
+library(dplyr)
+library(DescTools)
+library(pROC)
+library(caret)
+```
+
+## Data
+
+```{r}
+source("feature_function.R")
+```
+
+```{r}
+uncleaned_bots = read.csv("C:/Users/Owner/Desktop/Data Science Project/Twitter-Bot-Code/archive/twitter_human_bots_dataset.csv")
+```
+
+```{r}
+bots_with_features=feature_function(uncleaned_bots)
+```
+
+
+## LASSO
+Clean out unusable data
+```{r}
+bots_done = bots_with_features%>%
+  relocate(is_bot)%>%
+  select(-created_at,-description,-lang,-location,-screen_name)
+
+bots_done = na.omit(bots_done)
+```
+
+Build Model
+```{r}
+# Split the data into training and test set
+set.seed(1234)
+training_samples = bots_done$is_bot %>% 
+  createDataPartition(p = 0.8, list = FALSE)
+train_data  = bots_done[training_samples, ]
+test_data = bots_done[-training_samples, ]
+
+
+# Prepare the data
+x = model.matrix(is_bot~., train_data)[,-1]
+y = ifelse(train_data$is_bot == TRUE, 1, 0)
+
+  
+# Calculate and extract optimal lambda value for LASSO
+cv_fit = cv.glmnet(x, y, family = "binomial", alpha = 1)
+plot(cv_fit)  
+
+
+# Extract the best model (1se for simpler model)
+best_lambda = cv_fit$lambda.1se
+coef(cv_fit, cv_fit$lambda.1se)
+
+best_model = glmnet(x, y, family = "binomial", alpha = 1, lambda = best_lambda)
+coef(best_model)
+```
+
+Test model
+```{r}
+# Make prediction on test data
+x_test <- model.matrix(is_bot ~., test_data)[,-1]
+probabilities <- best_model %>% predict(newx = x_test)
+predicted_classes <- ifelse(probabilities > 0.5, TRUE, FALSE)
+
+# Model accuracy rate
+observed_classes <- test_data$is_bot
+mean(predicted_classes == observed_classes)
+
+# Predict probabilities and compute AUC
+predictions = predict(best_model, as.matrix(test_data%>%select(-is_bot)), type = "response")
+roc_curve = roc(test_data$is_bot, as.numeric(predictions))
+
+auc_value = auc(roc_curve)
+plot(roc_curve, main = "Best Model ROC Curve (AUC = 0.85)")
+
+# Print AUC value
+cat("AUC of the best Lasso logistic regression model: ", auc_value, "\n")
+```
+
+## Compare to Full Logisitc Model
+
+```{r}
+full_model = glm(is_bot ~., data = bots_done, family = binomial)
+
+# Make prediction on test data
+x_test <- model.matrix(is_bot ~., test_data)[,-1]
+probabilities <- full_model %>% predict(newx = x_test)
+predicted_classes <- ifelse(probabilities > 0.5, TRUE, FALSE)
+# Model accuracy rate
+observed_classes <- test_data$is_bot
+mean(predicted_classes == observed_classes)
+
+
+# Predict probabilities and compute AUC
+predictions = predict(full_model, test_data%>%select(-is_bot), type = "response")
+roc_curve = roc(test_data$is_bot, as.numeric(predictions))
+
+auc_value = auc(roc_curve)
+plot(roc_curve, main = "ROC Curve (AUC = 0.86")
+
+# Print AUC value
+cat("AUC of the full Lasso logistic regression model: ", auc_value, "\n")
+```
+
+
+## Confusion matrix and stats for all data
+
+Full Model
+```{r}
+# create vectors of actual and predicted response
+expected_classes=factor(bots_done$is_bot)
+# suppressWarnings because some predictors are colinear
+suppressWarnings({
+  predicted_probs = predict(full_model,    newdata=bots_done%>%select(-is_bot),type="response")
+  predicted_classes = ifelse(predicted_probs>0.5,1,0)
+  })
+predicted_classes = factor(as.logical(predicted_classes))
+head(predicted_classes)
+
+# create and print confusion matrix
+matrix = confusionMatrix(data=predicted_classes, reference = expected_classes)
+
+matrix
+```
+
+
+Chosen Model
+```{r}
+# create vectors of actual and predicted response
+expected_classes=factor(bots_done$is_bot)
+
+predicted_probs = predict(best_model,    newx=model.matrix(is_bot~., bots_done)[,-1],type="response")
+ 
+predicted_classes = ifelse(predicted_probs>0.45,1,0)
+
+predicted_classes = factor(as.logical(predicted_classes))
+head(predicted_classes)
+
+# create and print confusion matrix
+matrix = confusionMatrix(data=predicted_classes, reference = expected_classes)
+
+matrix
+
+mean(predicted_classes==expected_classes)
+```
+
+
+## Determining Cutoff Threshold
+
+```{r}
+cutoffs = seq(0.01, 1, by = 0.01)
+accuracy = 0
+
+for (i in cutoffs){
+  predicted_classes = ifelse(predicted_probs>i,1,0)
+
+  predicted_classes = as.logical(predicted_classes)
+  
+  accuracy[i*100] = mean(predicted_classes==expected_classes)
+}
+plot(cutoffs,accuracy,xlab = "Cutoff", ylab = "Accuracy", main = "Accuracy vs Cutoff")
+
+a = tibble(cutoffs,accuracy)
+a=a%>%drop_na()%>%slice_max(accuracy)
+a
+abline(v = 0.46, col='darkgreen')
+abline(h = 0.812, col='darkgreen')
+```
+
+
+Chosen Model and Chosen Cutoff Value
+```{r}
+# create vectors of actual and predicted response
+expected_classes=factor(bots_done$is_bot)
+
+predicted_probs = predict(best_model,    newx=model.matrix(is_bot~., bots_done)[,-1],type="response")
+ 
+predicted_classes = ifelse(predicted_probs>0.46,1,0)
+
+predicted_classes = factor(as.logical(predicted_classes))
+head(predicted_classes)
+
+# create and print confusion matrix
+matrix = confusionMatrix(data=predicted_classes, reference = expected_classes)
+
+matrix
+```
+
+
+## Summary
+
+Using the LASSO regression method for logistic model selection, we found the best model uses 15 predictors. Compared to the full model, the AUC of the ROC is almost the same (0.85 vs 0.86 for full). The accuracy of the new model is much higher than the full model when basing it of the "testing" date (0.789 new vs 0.596 full). However, when considering all the data, the accuracy level, along with the other statistics, are almost identical (accuracy of 0.8091 for LASSO vs 0.8077 for full).
+
+This information demonstrates the LASSO chosen model makes almost no difference on the validity of the model compared to the full model, but, because of the high accuracy difference with the testing data, the LASSO model should be more reliable for use for outside data, in addition to using less predictors (15 vs 23).
+
+Adjusting the classification threshold to optimize accuracy gives a threshold of 0.46 and an accuracy of 0.812, a small improvement over the 0.5 threshold.

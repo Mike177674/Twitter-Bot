@@ -1,0 +1,230 @@
+---
+title: "Data Cleaning"
+author: "Michal"
+date: "2024-07-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyr)
+library(tidyverse)
+library(dplyr)
+library(DescTools)
+```
+
+# Data Set
+
+```{r}
+bots = read.csv("C:/Users/Owner/Desktop/Data Science Project/Twitter-Bot-Code/archive/twitter_human_bots_dataset.csv")
+
+```
+
+```{r}
+head(bots)
+```
+
+# Data Profiling
+
+## Missing Data
+```{r}
+nrow(bots)
+bots_without_na = bots %>%
+  drop_na()
+nrow(bots_without_na)
+```
+
+```{r}
+empty_char = bots %>%
+  filter(str_trim(created_at)== "" | str_trim(default_profile) == "" | str_trim(default_profile_image) == "" | str_trim(geo_enabled) == ""  |  str_trim(screen_name) == "" | str_trim(verified) == "" | str_trim(account_type) == "" )
+nrow(empty_char)
+```
+
+```{r}
+empty_char = bots %>%
+  filter(str_trim(description) == "")
+nrow(empty_char)
+```
+```{r}
+empty_char = bots %>%
+  filter(str_trim(lang) == "")
+nrow(empty_char)
+```
+```{r}
+empty_char = bots %>%
+  filter(str_trim(location) == "")
+nrow(empty_char)
+```
+```{r}
+empty_char = bots %>%
+  filter(str_trim(location) == "unknown")
+nrow(empty_char)
+```
+*Observations*
+
+* No rows had NA values
+* No char values except in description, lang, and location column are empty
+* Empty counts: description-7256, lang-7957, location-17
+* Location has 13023 values of "unknown"
+* X is an index column
+* Includes four columns linking to images
+
+*Impact*
+
+* It is reasonable that many accounts will not have a description, language, and location
+* Standardize missing location values to "unknown"
+* Remove X column because it is not useful
+* Remove image related columns because we lack ability to analyze images
+
+
+
+
+## Column Types
+```{r}
+class(bots$created_at)
+class(bots$default_profile)
+class(bots$default_profile_image)
+class(bots$description)
+class(bots$favourites_count)
+class(bots$followers_count)
+class(bots$friends_count)
+class(bots$geo_enabled)
+class(bots$id)
+class(bots$lang)
+class(bots$location)
+class(bots$screen_name)
+class(bots$statuses_count)
+class(bots$verified)
+class(bots$average_tweets_per_day)
+class(bots$account_age_days)
+class(bots$account_type)
+class(bots$split)
+
+```
+*Observations*
+
+* created_at is a character
+* default_profile is a character
+* default_profile_image is a character
+* geo_enabled is a character
+* verified is a character
+* account_type is a character
+
+*Impact*
+
+* Cast created_at to a date-time class for now
+* Cast default_profile to boolean
+* Cast default_profile_image to boolean
+* Cast geo_enabled to boolean
+* Cast verified to boolean
+* Cast account_type to boolean (TRUE = bot) and change column name to "is_bot"
+
+
+
+## Outliers
+
+```{r}
+ggplot(data = bots, mapping = aes(favourites_count))+
+  geom_boxplot()+
+  scale_x_log10()+
+  theme_minimal()
+
+ggplot(data = bots, mapping = aes(followers_count))+
+  geom_boxplot()+
+  scale_x_log10()+
+  theme_minimal()
+
+ggplot(data = bots, mapping = aes(friends_count))+
+  geom_boxplot()+
+  scale_x_log10()+
+  theme_minimal()
+
+ggplot(data = bots, mapping = aes(statuses_count))+
+  geom_boxplot()+
+  scale_x_log10()+
+  theme_minimal()
+
+ggplot(data = bots, mapping = aes(average_tweets_per_day))+
+  geom_boxplot()+
+  scale_x_log10()+
+  theme_minimal()
+
+ggplot(data = bots, mapping = aes(account_age_days))+
+  geom_boxplot()+
+  theme_minimal()
+```
+*Observations*
+
+* Most numerical values are strongly skewed right, most box plots are represented with a logarithmic x-axis
+* Even after applying log10, there are many outliers on every column except account_age_days
+
+*Impact*
+
+* Transform each of the skewed columns by taking log10
+* Apply winsorizing to the transformed data
+
+
+
+## Data Pre-processing Pipeline
+
+Based on the anaylsis above, the following data cleaning and pre-processing steps will be taken:
+
+* Standardize missing location values to "unknown"
+* Remove X column because it is not useful
+* Remove image related columns because we lack ability to analyze images
+* Cast created_at to a date-time class for now
+* Cast default_profile to boolean
+* Cast default_profile_image to boolean
+* Cast geo_enabled to boolean
+* Cast verified to boolean
+* Cast account_type to number (bot = 1) and change column name to "is_bot" (easier for logistic regression)
+* Transform each of the skewed columns by taking log10
+* Apply winsorizing to the transformed data
+
+
+```{r}
+cleaning_function = function(data) {
+  cleaned = data%>%
+    # remove unnecessary columns
+    select(-X,-profile_image_path,-profile_background_image_path, -profile_background_image_url, -profile_image_url)%>%
+   
+     # standardize missing location  value
+    mutate(
+      location = if_else(str_trim(location) == "","unknown",location))%>%
+  
+    # type cast to correct class
+  mutate(
+    created_at = ymd_hms(created_at),
+    default_profile = as.logical(default_profile),
+    default_profile_image = as.logical(default_profile_image),
+    geo_enabled = as.logical(geo_enabled),
+    verified = as.logical(verified))%>%
+    
+     #cast and rename account_type
+  mutate(
+    account_type=if_else(account_type=="bot",1,0))%>%
+  rename(is_bot=account_type)%>%
+    
+    # transform and winsorize outliers
+    mutate(
+      # log(x+1) to avoid "-inf"
+      log_favourites_count = log10(favourites_count+1),
+      log_followers_count = log10(followers_count+1),
+      log_friends_count = log10(friends_count+1),
+      log_statuses_count = log10(statuses_count+1),
+      log_avg_tweets_per_day = log10(average_tweets_per_day+1)
+    )%>%
+    mutate(
+      log_favourites_count= Winsorize(log_favourites_count),
+      log_followers_count = Winsorize(log_followers_count),
+      log_friends_count = Winsorize(log_friends_count),
+      log_statuses_count = Winsorize(log_statuses_count),
+      log_avg_tweets_per_day = Winsorize(log_avg_tweets_per_day)
+    )%>%
+  
+  # remove old columns
+  select(-favourites_count,-followers_count,-friends_count, -statuses_count, -average_tweets_per_day)
+  return(cleaned)
+}
+```
+
