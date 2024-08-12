@@ -39,5 +39,3 @@ To determine the achieved business metrics, we first need to set the threshold f
 From the threshold analysis, we can see that the maximum accuracy we can achieve is 0.812 at a threshold of 0.46. For this project, we can assume that the business is more interested in obtaining higher accuracy than any other metric, so we set the threshold at 0.46 which gives us the following metrics:
 
 <img src="https://github.com/user-attachments/assets/9860f468-2778-4c09-8e79-6a0fd1f6e155" width="450" alt="Description">
-
-# Prediction Service
