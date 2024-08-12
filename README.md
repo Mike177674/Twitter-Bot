@@ -26,7 +26,7 @@ From the provided data set, the following statistically significant features wer
 Models were compared using ROC AUC and accuracy since this is a binary classification task. The best-performing model selected by the LASSO regression algorithm is this one:
 
 <img src="https://github.com/user-attachments/assets/bace5bac-374c-4c57-9810-76b63b6531d3" width="450" alt="Description">
-<img src="https://github.com/user-attachments/assets/d52594bc-0e26-4c20-8af8-b1b8a20e9bb4" width="450" alt="Description">
+<img src="https://github.com/user-attachments/assets/d52594bc-0e26-4c20-8af8-b1b8a20e9bb4" width="600" alt="Description">
 <img src="https://github.com/user-attachments/assets/90497e85-87fe-486f-b899-3608d3934802" width="500" alt="Description">
 
 
